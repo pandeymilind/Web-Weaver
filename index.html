@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Weaver</title>
+    <title>Web Weaver - Drag-and-Drop Builder</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Inter -->
@@ -24,6 +24,7 @@
             background-color: #ffffff;
             box-shadow: 0 0 30px rgba(0,0,0,0.05);
             overflow-y: auto;
+            transition: width 0.3s ease-in-out;
         }
         .dropped-element {
             position: relative;
@@ -111,7 +112,7 @@
         .four-value-input .link-btn { cursor: pointer; color: #9ca3af; }
         .four-value-input .link-btn.linked { color: #3b82f6; }
         
-        .align-btn-group button.active, .style-btn-group button.active {
+        .align-btn-group button.active, .style-btn-group button.active, #device-switcher button.active, .visibility-btn-group button.active {
             background-color: #3b82f6;
             color: white;
         }
@@ -126,6 +127,15 @@
             cursor: not-allowed;
             background-color: #e5e7eb !important;
         }
+
+        /* Responsive Visibility */
+        .device-desktop .hide-on-desktop { display: none !important; }
+        .device-tablet .hide-on-tablet { display: none !important; }
+        .device-mobile .hide-on-mobile { display: none !important; }
+
+        /* Responsive Columns */
+        .device-mobile .responsive-columns { flex-direction: column; }
+
     </style>
 </head>
 <body class="flex flex-col h-screen">
@@ -180,12 +190,27 @@
         </aside>
 
         <!-- Main Canvas -->
-        <main class="flex-1 flex flex-col bg-gray-100"><div id="dropZone" class="flex-1 drop-zone m-4 p-8 rounded-lg"><div id="dropZonePlaceholder" class="text-center text-gray-400 flex flex-col items-center justify-center h-full"><svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 4v16m8-8H4"></path></svg><h2 class="text-xl font-semibold">Drag & Drop Here</h2><p class="mt-1">Start building your page by dragging elements from the left panel.</p></div></div></main>
+        <main id="main-canvas-area" class="flex-1 flex flex-col bg-gray-100 items-center pt-4 device-desktop">
+            <div id="dropZone" class="w-full drop-zone p-8 rounded-lg">
+                <div id="dropZonePlaceholder" class="text-center text-gray-400 flex flex-col items-center justify-center h-full">
+                    <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 4v16m8-8H4"></path></svg>
+                    <h2 class="text-xl font-semibold">Drag & Drop Here</h2>
+                    <p class="mt-1">Start building your page by dragging elements from the left panel.</p>
+                </div>
+            </div>
+        </main>
     </div>
 
     <!-- Footer Toolbar -->
     <footer class="bg-white h-12 flex items-center justify-between px-4 border-t z-50">
         <div><button id="navigator-toggle" class="text-gray-600 hover:bg-gray-200 p-2 rounded-md flex items-center space-x-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg><span>Navigator</span></button></div>
+        
+        <div id="device-switcher" class="flex items-center space-x-1 bg-gray-200 rounded-md p-1">
+            <button data-device="desktop" class="p-1 rounded-md active"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></button>
+            <button data-device="tablet" class="p-1 rounded-md"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></button>
+            <button data-device="mobile" class="p-1 rounded-md"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></button>
+        </div>
+
         <div class="flex items-center space-x-2">
             <button id="undo-btn" class="text-gray-600 hover:bg-gray-200 p-2 rounded-md disabled:text-gray-400 disabled:cursor-not-allowed">Undo</button>
             <button id="redo-btn" class="text-gray-600 hover:bg-gray-200 p-2 rounded-md disabled:text-gray-400 disabled:cursor-not-allowed">Redo</button>
@@ -212,9 +237,11 @@
         let isRenaming = false;
         let isEditingText = false;
         let clipboard = null;
-        const LOCAL_STORAGE_KEY = 'webWeaverContent_v19_undoRedo';
+        let currentDevice = 'desktop';
+        const LOCAL_STORAGE_KEY = 'webWeaverContent_v21_visibility';
 
         const dropZone = document.getElementById('dropZone');
+        const mainCanvasArea = document.getElementById('main-canvas-area');
         const componentsPanel = document.getElementById('components-panel');
         const propertiesPanel = document.getElementById('propertiesPanel');
         const elementPropertiesContainer = document.getElementById('elementProperties');
@@ -229,7 +256,6 @@
         let historyIndex = 0;
 
         function recordHistory() {
-            // If we are not at the end of history, slice it
             if (historyIndex < history.length - 1) {
                 history = history.slice(0, historyIndex + 1);
             }
@@ -240,10 +266,9 @@
 
         function restoreHistory(index) {
             dropZone.innerHTML = history[index];
-            // Re-attach listeners to all elements after restoring
             dropZone.querySelectorAll('.dropped-element').forEach(el => attachElementListeners(el));
             updateUI();
-            deselectAll(); // Deselect to avoid stale references
+            deselectAll();
         }
 
         function undo() {
@@ -376,7 +401,7 @@
                 case 'div': data = { id, type, classes: 'p-4 my-2 border border-gray-200 rounded-md min-h-[100px]' }; break;
                 case 'columns-2':
                     data = {
-                        id, type: 'columns-2', classes: 'flex gap-4 my-2',
+                        id, type: 'columns-2', classes: 'flex gap-4 my-2 responsive-columns',
                         children: [
                             { id: `col-${id}-1`, type: 'div', classes: 'flex-1 p-4 border border-dashed border-gray-300 rounded-md min-h-[100px]', children: [] },
                             { id: `col-${id}-2`, type: 'div', classes: 'flex-1 p-4 border border-dashed border-gray-300 rounded-md min-h-[100px]', children: [] }
@@ -385,7 +410,7 @@
                     break;
                 case 'columns-3':
                      data = {
-                        id, type: 'columns-3', classes: 'flex gap-4 my-2',
+                        id, type: 'columns-3', classes: 'flex gap-4 my-2 responsive-columns',
                         children: [
                             { id: `col-${id}-1`, type: 'div', classes: 'flex-1 p-4 border border-dashed border-gray-300 rounded-md min-h-[100px]', children: [] },
                             { id: `col-${id}-2`, type: 'div', classes: 'flex-1 p-4 border border-dashed border-gray-300 rounded-md min-h-[100px]', children: [] },
@@ -536,7 +561,20 @@
                     </div>
                 `;
             } else if (tabName === 'advanced') {
-                propertiesHtml = `<div class="text-center text-gray-500 p-8">Advanced properties coming soon!</div>`;
+                propertiesHtml = `
+                    <div id="advanced-accordion">
+                        <div class="accordion-item active">
+                            <div class="accordion-header flex justify-between items-center"><span class="font-semibold">Responsive Visibility</span><span class="icon">&#9654;</span></div>
+                            <div class="accordion-content">
+                                <div class="visibility-btn-group grid grid-cols-3 gap-1 rounded-md p-1 bg-gray-200">
+                                    <button data-device="desktop" class="p-1 rounded ${!data.classes.includes('hide-on-desktop') ? 'active' : ''}">Desktop</button>
+                                    <button data-device="tablet" class="p-1 rounded ${!data.classes.includes('hide-on-tablet') ? 'active' : ''}">Tablet</button>
+                                    <button data-device="mobile" class="p-1 rounded ${!data.classes.includes('hide-on-mobile') ? 'active' : ''}">Mobile</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
 
             elementPropertiesContainer.innerHTML = propertiesHtml;
@@ -647,6 +685,16 @@
                     recordHistory();
                 });
             }
+
+            // Visibility
+            document.querySelectorAll('.visibility-btn-group button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const device = btn.dataset.device;
+                    selectedElement.classList.toggle(`hide-on-${device}`);
+                    btn.classList.toggle('active');
+                    recordHistory();
+                });
+            });
         }
 
         function updateSelectedElement(property, value) {
@@ -1153,6 +1201,33 @@
         // Navigator Toggle
         document.getElementById('navigator-toggle').addEventListener('click', () => navigatorPanel.classList.toggle('show'));
         document.getElementById('navigator-close').addEventListener('click', () => navigatorPanel.classList.remove('show'));
+
+        // Device Switcher
+        document.querySelectorAll('#device-switcher button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentDevice = btn.dataset.device;
+                document.querySelector('#device-switcher button.active').classList.remove('active');
+                btn.classList.add('active');
+                
+                mainCanvasArea.classList.remove('device-desktop', 'device-tablet', 'device-mobile');
+                mainCanvasArea.classList.add(`device-${currentDevice}`);
+
+                switch(currentDevice) {
+                    case 'tablet':
+                        dropZone.style.width = '768px';
+                        break;
+                    case 'mobile':
+                        dropZone.style.width = '420px';
+                        break;
+                    default:
+                        dropZone.style.width = '100%';
+                }
+
+                if (selectedElement) {
+                    populatePropertiesPanel();
+                }
+            });
+        });
 
         // Publish Modal
         document.getElementById('publishBtn').addEventListener('click', () => {
